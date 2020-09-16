@@ -1,0 +1,31 @@
+name: Create release tarball from tag
+
+on: 
+  push:
+    # Sequence of patterns matched against refs/tags
+    tags:
+      - 'v*' # Push events to matching v*, i.e. v1.0, v20.15.10
+
+jobs:
+  build:
+
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v2
+    - uses: actions/setup-node@v1
+      with:
+        node-version: '14.x'
+    - run: yarn install
+    - run: yarn build
+    - run: |
+        version=`git describe --dirty --tags || echo unknown`
+        mkdir -p dist
+        cp -r build synod-admin-$version
+        tar chvzf dist/synod-admin-$version.tar.gz synod-admin-$version
+        rm -r synod-admin-$version
+    - uses: softprops/action-gh-release@78c309ef59fdb9557cd6574f2e0be552936ed728
+      with:
+        files: dist/*.tar.gz
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
