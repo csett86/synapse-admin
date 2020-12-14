@@ -66,6 +66,11 @@ const resourceMap = {
     total: json => {
       return json.total_rooms;
     },
+    delete: params => ({
+      endpoint: `/_synapse/admin/v1/rooms/${params.id}/delete`,
+      body: { block: false },
+      method: "POST",
+    }),
   },
   devices: {
     map: d => ({
@@ -73,6 +78,7 @@ const resourceMap = {
       id: d.device_id,
     }),
     data: "devices",
+    total: json => json.devices.length,
     reference: id => ({
       endpoint: `/_synapse/admin/v2/users/${id}/devices`,
     }),
@@ -96,6 +102,7 @@ const resourceMap = {
       endpoint: `/_synapse/admin/v1/rooms/${id}/members`,
     }),
     data: "members",
+    total: json => json.members.length,
   },
   servernotices: {
     map: n => ({ id: n.event_id }),
@@ -132,7 +139,7 @@ function getSearchOrder(order) {
 const dataProvider = {
   getList: (resource, params) => {
     console.log("getList " + resource);
-    const { user_id, guests, deactivated } = params.filter;
+    const { user_id, name, guests, deactivated, search_term } = params.filter;
     const { page, perPage } = params.pagination;
     const { field, order } = params.sort;
     const from = (page - 1) * perPage;
@@ -140,6 +147,8 @@ const dataProvider = {
       from: from,
       limit: perPage,
       user_id: user_id,
+      search_term: search_term,
+      name: name,
       guests: guests,
       deactivated: deactivated,
       order_by: field,
@@ -184,11 +193,14 @@ const dataProvider = {
       params.ids.map(id => jsonClient(`${endpoint_url}/${id}`))
     ).then(responses => ({
       data: responses.map(({ json }) => res.map(json)),
+      total: responses.length,
     }));
   },
 
   getManyReference: (resource, params) => {
     console.log("getManyReference " + resource);
+    const { page, perPage } = params.pagination;
+    const from = (page - 1) * perPage;
 
     const homeserver = localStorage.getItem("base_url");
     if (!homeserver || !(resource in resourceMap)) return Promise.reject();
@@ -200,6 +212,7 @@ const dataProvider = {
 
     return jsonClient(endpoint_url).then(({ headers, json }) => ({
       data: json[res.data].map(res.map),
+      total: res.total(json, from, perPage),
     }));
   },
 
